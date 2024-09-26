@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor-Patient Conversation Summary</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/RecordRTC/5.6.2/RecordRTC.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+
+        h1,
+        h2 {
+            color: #2c3e50;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #3498db;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        #recordingIndicator {
+            display: none;
+            color: #e74c3c;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        #audioFile {
+            margin: 10px 0;
+        }
+
+        #audioPlayback {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        #error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        #processingMessage {
+            color: #2980b9;
+            font-weight: bold;
+        }
+
+        #transcript,
+        #medicalReport {
+            margin-top: 20px;
+            border: 1px solid #bdc3c7;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: white;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Doctor-Patient Conversation Summary Report</h1>
+
+    <div class="container">
+        <h2>Record or Upload Audio File</h2>
+
+        <div>
+            <button id="startRecordButton">Start Recording</button>
+            <button id="stopRecordButton" disabled>Stop Recording</button>
+            <span id="recordingIndicator">Recording...</span>
+        </div>
+
+        <audio id="audioPlayback" controls style="display:none;"></audio>
+
+        <div>
+            <input type="file" id="audioFile" accept=".wav,.mp3,">
+        </div>
+
+        <button id="processButton" disabled>Start Processing</button>
+
+        <div id="error"></div>
+        <div id="processingMessage"></div>
+        <div class="loader" id="processingLoader"></div>
+    </div>
+
+    <div id="transcript" class="container" style="display:none;"></div>
+    <div id="medicalReport" class="container" style="display:none;"></div>
+
+    <script>
+        let recorder;
+        let audioBlob;
+
+        const startRecordButton = document.getElementById('startRecordButton');
+        const stopRecordButton = document.getElementById('stopRecordButton');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const audioFileInput = document.getElementById('audioFile');
+        const processButton = document.getElementById('processButton');
+        const errorDiv = document.getElementById('error');
+        const processingMessageDiv = document.getElementById('processingMessage');
+        const processingLoader = document.getElementById('processingLoader');
+
+        startRecordButton.addEventListener('click', startRecording);
+        stopRecordButton.addEventListener('click', stopRecording);
+        audioFileInput.addEventListener('change', handleFileUpload);
+        processButton.addEventListener('click', startProcessing);
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true
+                });
+                recorder = new RecordRTC(stream, {
+                    type: 'audio'
+                });
+                recorder.startRecording();
+                startRecordButton.disabled = true;
+                stopRecordButton.disabled = false;
+                recordingIndicator.style.display = 'inline';
+                errorDiv.textContent = '';
+                processButton.disabled = true;
+                audioFileInput.value = '';
+                audioPlayback.style.display = 'none';
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                errorDiv.textContent = 'Error starting recording. Please make sure you have granted microphone permissions.';
+            }
+        }
+
+        function stopRecording() {
+            if (recorder) {
+                recorder.stopRecording(() => {
+                    audioBlob = recorder.getBlob();
+                    audioPlayback.src = URL.createObjectURL(audioBlob);
+                    audioPlayback.style.display = 'block';
+                    startRecordButton.disabled = false;
+                    stopRecordButton.disabled = true;
+                    recordingIndicator.style.display = 'none';
+                    processButton.disabled = false;
+                });
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                audioBlob = file;
+                audioPlayback.src = URL.createObjectURL(file);
+                audioPlayback.style.display = 'block';
+                processButton.disabled = false;
+            }
+        }
+
+        function startProcessing() {
+            if (audioBlob) {
+                processAudio(audioBlob, audioBlob.name || 'recorded_audio.wav');
+            } else {
+                errorDiv.textContent = 'Please record audio or select a file before processing.';
+            }
+        }
+
+        async function processAudio(audioFile, fileName) {
+            const formData = new FormData();
+            formData.append('file', audioFile, fileName);
+
+            processingMessageDiv.textContent = 'Processing audio...';
+            errorDiv.textContent = '';
+            processingLoader.style.display = 'block';
+            processButton.disabled = true;
+
+            try {
+                const response = await fetch('/process-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('transcript').innerHTML = `<h3>Transcript:</h3><p>${result.transcript}</p>`;
+                    document.getElementById('medicalReport').innerHTML = `<h3>Medical Report:</h3>${marked.parse(result.medical_report)}`;
+                    document.getElementById('transcript').style.display = 'block';
+                    document.getElementById('medicalReport').style.display = 'block';
+                    processingMessageDiv.textContent = 'Processing complete!';
+                } else {
+                    errorDiv.textContent = result.error;
+                    processingMessageDiv.textContent = '';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'An error occurred while processing the audio.';
+                processingMessageDiv.textContent = '';
+            } finally {
+                processingLoader.style.display = 'none';
+                processButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
