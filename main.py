@@ -12,7 +12,6 @@ UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 TRANSCRIPTION_SERVICE_URL = 'http://localhost:5001/transcribe'
 REPORT_SERVICE_URL = 'http://localhost:5002/generate-report'
